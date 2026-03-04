@@ -1,9 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { RunSummary } from '../../lib/types';
 import { QUALITY_BADGE, STATUS_COLORS } from '../../lib/constants';
 import { AppHeader } from './AppHeader';
+
+const RUNS_KEY = 'mcs-runs';
+
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener('storage', callback);
+  return () => window.removeEventListener('storage', callback);
+}
+
+function getRunsSnapshot(): string {
+  try { return localStorage.getItem(RUNS_KEY) ?? '[]'; }
+  catch { return '[]'; }
+}
+
+function getRunsServerSnapshot(): string {
+  return '[]';
+}
 
 interface HomePageProps {
   onNewRun: () => void;
@@ -22,19 +38,19 @@ function timeAgo(dateStr: string): string {
 }
 
 export function HomePage({ onNewRun, onOpenRun }: HomePageProps) {
-  const [runs, setRuns] = useState<RunSummary[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = localStorage.getItem('mcs-runs');
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
+  const runsJson = useSyncExternalStore(subscribeToStorage, getRunsSnapshot, getRunsServerSnapshot);
+  const runs: RunSummary[] = JSON.parse(runsJson);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const updateRuns = useCallback((updated: RunSummary[]) => {
+    localStorage.setItem(RUNS_KEY, JSON.stringify(updated));
+    // Trigger re-render via storage event for same-window
+    window.dispatchEvent(new StorageEvent('storage', { key: RUNS_KEY }));
+  }, []);
 
   const handleDelete = (runId: string) => {
     const updated = runs.filter((r) => r.runId !== runId);
-    setRuns(updated);
-    localStorage.setItem('mcs-runs', JSON.stringify(updated));
+    updateRuns(updated);
     try { localStorage.removeItem(`mcs-run-${runId}`); } catch {}
     setDeleteConfirm(null);
   };

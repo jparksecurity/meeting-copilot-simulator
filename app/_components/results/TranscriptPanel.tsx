@@ -20,6 +20,11 @@ export function TranscriptPanel({ segments, currentTick, targetParticipant, tran
     ? segments.filter((s) => s.text.toLowerCase().includes(search.toLowerCase()) || s.speaker.toLowerCase().includes(search.toLowerCase()))
     : segments;
 
+  // Find the single current segment: last segment whose start <= tickTime
+  const currentSegIndex = currentTick
+    ? filtered.reduce((best, seg, i) => (seg.start <= currentTick.tickTime ? i : best), -1)
+    : -1;
+
   return (
     <div className="flex flex-col h-full bg-zinc-50/50">
       {/* Search */}
@@ -43,19 +48,19 @@ export function TranscriptPanel({ segments, currentTick, targetParticipant, tran
         {filtered.map((seg, i) => {
           const isTarget = seg.speaker === targetParticipant;
           const inWindow = currentTick && seg.start < windowEnd && seg.end > windowStart;
-          const isActive = currentTick && currentTick.tickTime >= seg.start && currentTick.tickTime < seg.end + 5;
+          const isCurrent = i === currentSegIndex;
 
           return (
             <div
               key={i}
-              data-highlighted={isActive ? 'true' : 'false'}
+              data-highlighted={isCurrent ? 'true' : 'false'}
               className={`flex flex-col ${isTarget ? 'items-end' : 'items-start'} transition-opacity duration-200 ${
                 inWindow ? 'opacity-100' : 'opacity-40 hover:opacity-80'
               }`}
             >
               <div
                 className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm relative transition-all ${
-                  isActive ? 'ring-2 ring-blue-400 ring-offset-2 shadow-sm' : ''
+                  isCurrent ? 'ring-2 ring-blue-400 ring-offset-2 shadow-sm' : ''
                 } ${
                   isTarget
                     ? 'bg-blue-100 text-blue-900 rounded-br-sm'

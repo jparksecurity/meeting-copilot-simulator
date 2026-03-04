@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { TranscriptSegment } from '../../lib/types';
 import { parseTranscript, getReplayQuality, getMaxEnd, getSpeakers, formatTime } from '../../lib/transcript';
 import { isAudioFile } from '../../lib/constants';
-import { transcribeAudio } from '../../lib/actions';
 import { AppHeader } from './AppHeader';
 import { Stepper } from './Stepper';
 
@@ -63,7 +62,12 @@ export function ProcessingStage({ file, filename, preloadedSegments, onComplete,
         try {
           const form = new FormData();
           form.append('audio', file);
-          const result = await transcribeAudio(form);
+          const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `Transcription failed (${res.status})`);
+          }
+          const result: TranscriptSegment[] = await res.json();
           if (cancelled) return;
           if (result.length === 0) throw new Error('No speech detected.');
           updateStep(1, { status: 'complete', detail: `${formatTime(Math.ceil(getMaxEnd(result)))} duration` });

@@ -229,7 +229,7 @@ export function ConfigureStage({ segments, filename, onRun, onBack }: ConfigureS
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   rows={12}
-                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-xs font-mono bg-zinc-50 resize-y focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none"
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-xs font-mono text-zinc-800 bg-zinc-50 resize-y focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none"
                 />
                 <p className="text-xs text-zinc-400 mt-2">
                   Variables: {'{{target_participant}}'} {'{{tick_time}}'} {'{{context_window}}'} {'{{recent_cards}}'}{' '}
