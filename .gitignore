@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# playwright-cli session artifacts
+.playwright-cli/
+
 # vercel
 .vercel
 
