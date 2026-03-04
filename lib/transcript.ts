@@ -23,7 +23,7 @@ export function getReplayQuality(segments: TranscriptSegment[]): ReplayQuality {
   return segments[0]?.provenance ?? 'approximate';
 }
 
-export function parseTranscript(content: string, filename: string): TranscriptSegment[] {
+export function parseTranscript(content: string): TranscriptSegment[] {
   try {
     const parsed = JSON.parse(content);
     // QMSum format: top-level object with meeting_transcripts array using "content" field
@@ -76,6 +76,14 @@ export function parseTranscript(content: string, filename: string): TranscriptSe
     .filter((s) => s.length > 0);
   const rawSegments: RawSegment[] = sentences.map((text) => ({ speaker: 'Unknown', text }));
   return estimateTimestamps(rawSegments, 'approximate');
+}
+
+export function getMaxEnd(segments: TranscriptSegment[]): number {
+  return segments.reduce((max, s) => s.end > max ? s.end : max, 0);
+}
+
+export function getSpeakers(segments: TranscriptSegment[]): string[] {
+  return Array.from(new Set(segments.map((s) => s.speaker)));
 }
 
 export function formatTime(seconds: number): string {
