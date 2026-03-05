@@ -13,7 +13,8 @@ export async function runTick(
   tickTime: number,
   segments: TranscriptSegment[],
   config: SimulationConfig,
-  recentCards: CardResult[]
+  recentCards: CardResult[],
+  signal?: AbortSignal
 ): Promise<TickLog> {
   const { targetParticipant, contextWindowSeconds, promptTemplate } = config;
 
@@ -39,6 +40,7 @@ export async function runTick(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ systemPrompt: system, userMessage: user }),
+      signal,
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'API error');
@@ -72,7 +74,8 @@ export async function runTick(
 
 export async function* runAllTicks(
   segments: TranscriptSegment[],
-  config: SimulationConfig
+  config: SimulationConfig,
+  signal?: AbortSignal
 ): AsyncGenerator<TickLog> {
   const tickInterval = config.tickIntervalSeconds ?? 30;
   const lastEnd = segments.reduce((max, s) => s.end > max ? s.end : max, 0);
@@ -84,7 +87,9 @@ export async function* runAllTicks(
   const recentCards: CardResult[] = [];
 
   for (const t of tickTimes) {
-    const log = await runTick(t, segments, config, recentCards.slice(-5));
+    if (signal?.aborted) return;
+    const log = await runTick(t, segments, config, recentCards.slice(-5), signal);
+    if (signal?.aborted) return;
     if (log.result.intervene) {
       recentCards.push(...log.result.cards.filter((c) => c.type !== 'hold'));
     }

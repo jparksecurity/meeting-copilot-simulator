@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { TranscriptSegment, TickLog, RunLog, RunConfig, RunSummary } from '../../lib/types';
 import { getReplayQuality, getMaxEnd } from '../../lib/transcript';
 import { DEFAULT_PROMPT } from '../../lib/prompt';
@@ -28,8 +28,15 @@ export function SimulatorRoot() {
     contextWindowSeconds: 60,
     prompt: DEFAULT_PROMPT,
   });
+  const abortRef = useRef<AbortController | null>(null);
+
+  const cancelActiveRun = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
 
   const resetState = (target: Stage) => {
+    cancelActiveRun();
     setStage(target);
     setSegments([]);
     setFilename('');
@@ -62,6 +69,12 @@ export function SimulatorRoot() {
   };
 
   const handleRun = async (config: RunConfig) => {
+    cancelActiveRun();
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
+
     setRunConfig(config);
     const lastEnd = getMaxEnd(segments);
     const total = Math.floor(Math.ceil(lastEnd) / TICK_INTERVAL);
@@ -80,14 +93,16 @@ export function SimulatorRoot() {
       contextWindowSeconds: config.contextWindowSeconds,
       promptTemplate: config.prompt,
       tickIntervalSeconds: TICK_INTERVAL,
-    });
+    }, signal);
 
     try {
       for await (const tick of generator) {
+        if (signal.aborted) break;
         collectedTicks.push(tick);
         setTicks([...collectedTicks]);
       }
     } finally {
+      if (signal.aborted) return;
       const log: RunLog = {
         runId,
         startTime,
@@ -113,6 +128,7 @@ export function SimulatorRoot() {
   const handleReset = () => resetState('home');
 
   const handleOpenRun = (runId: string) => {
+    cancelActiveRun();
     try {
       const stored = localStorage.getItem(`mcs-run-${runId}`);
       if (!stored) return;
