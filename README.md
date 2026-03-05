@@ -46,7 +46,58 @@ Transcribed via OpenAI `gpt-4o-transcribe` with diarization → provenance `gene
 
 ## Test Data
 
-The repo includes `test-meeting.json` — a 22-segment, 3-speaker quarterly business review (~5 min) in exact format.
+### Quick Start — Two Files
+
+Start with one transcript + one audio file from matching meeting IDs:
+
+1. **QMSum `ES2002a.json`** — transcript-only testing (QMSum format, `estimated` provenance)
+2. **AMI `ES2002a.Mix-Headset.wav`** — audio upload + transcription testing (`generated` provenance)
+
+Download links:
+
+- QMSum raw JSON: <https://raw.githubusercontent.com/Yale-LILY/QMSum/main/data/Product/all/ES2002a.json>
+- AMI mixed WAV: <https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Mix-Headset.wav>
+
+### QMSum — Transcript Testing
+
+[QMSum](https://github.com/Yale-LILY/QMSum) is a query-based summarization dataset built on AMI + ICSI meetings. Each meeting is a single JSON file in [`data/Product/all/`](https://github.com/Yale-LILY/QMSum/tree/main/data/Product/all).
+
+The JSON contains three top-level keys: `meeting_transcripts`, `general_query_list`, `specific_query_list`. You only need **`meeting_transcripts`** — each entry has `speaker` + `content` fields that map directly to our QMSum parser.
+
+Ignore the `train/val/test` splits — use `all/` for prototyping since it contains every meeting in one folder.
+
+Useful links:
+
+- [Product folder](https://github.com/Yale-LILY/QMSum/tree/main/data/Product/all) — all Product-domain meetings
+- [ES2002a meeting page](https://github.com/Yale-LILY/QMSum/blob/main/data/Product/all/ES2002a.json) — example meeting
+- [Raw JSON](https://raw.githubusercontent.com/Yale-LILY/QMSum/main/data/Product/all/ES2002a.json) — direct download
+
+### AMI — Audio + Transcript Testing
+
+The [AMI Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) official site is confusing — many meeting IDs, multiple audio/video streams, and several annotation formats. For prototyping, you only need one audio file.
+
+**Step-by-step to download audio:**
+
+1. Go to the [AMI download page](https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/)
+2. Navigate to `ES2002a/` → `audio/`
+3. Download **`ES2002a.Mix-Headset.wav`** (the single mixed-down WAV, ~30 MB)
+4. Upload it in the app — OpenAI diarization will produce `generated` provenance segments
+
+Or direct link: <https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Mix-Headset.wav>
+
+**Transcripts:** The official AMI transcript format is NXT XML (hard to parse). Use the [HuggingFace mirror](https://huggingface.co/datasets/edinburghcstr/ami/viewer/ihm) instead, which provides clean fields: `meeting_id`, `text`, `begin_time`, `end_time`, `speaker_id`. Rename to `{start, end, speaker, text}` for `exact` provenance.
+
+Useful links:
+
+- [AMI download page](https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/) — all meeting audio/video
+- [AMI transcription page](https://groups.inf.ed.ac.uk/ami/corpus/amimanual.html) — annotation format docs
+- [HuggingFace viewer](https://huggingface.co/datasets/edinburghcstr/ami/viewer/ihm) — clean transcript data
+
+### What to Ignore
+
+- **AMI:** videos, non-scenario meetings, automatic (ASR) annotations — only use manual/headset-mix
+- **QMSum:** `train/val/test` splits, `general_query_list` / `specific_query_list` fields
+- **For prototyping:** one transcript JSON + one audio WAV + speaker/content segments is enough
 
 ### Recommended Public Corpora
 
@@ -59,7 +110,7 @@ For systematic testing, use meeting-specific corpora in two lanes: **transcript-
 | 3 | [MeetingBank](https://meetingbank.github.io/) | Audio + Transcript | 3,579+ hours | Stress-testing long meetings, word-level timing | CC BY-NC-ND 4.0 |
 | 4 | [ICSI](https://groups.inf.ed.ac.uk/ami/icsi/) | Audio + Transcript | ~70 hours | Second English audio source | CC BY 4.0 |
 
-**Format mapping to our parser:**
+### Format Mapping
 
 - **QMSum** → direct match to `{meeting_transcripts: [{speaker, content}]}` parser → `estimated`
 - **AMI HuggingFace** → rename `{begin_time, end_time, speaker_id, text}` → `{start, end, speaker, text}` → `exact`
@@ -77,7 +128,7 @@ For each corpus, test across context window sizes (30s, 60s, 120s, 300s) and obs
 
 ## Architecture
 
-3-stage wizard UI: **Upload → Configure → Results**
+5-stage wizard: **Home → Upload → Processing → Configure → Results**
 
 ### Key Files
 
@@ -101,6 +152,3 @@ For each corpus, test across context window sizes (30s, 60s, 120s, 300s) and obs
 | `{{recent_cards}}` | Last 5 shown cards, or "(none)" |
 | `{{transcript_window}}` | `[MM:SS] Speaker: text` per line |
 
-## Full Specification
-
-See [prompt.md](./prompt.md) for the complete product specification including functional requirements, UI specs, intervention policy, replay states, and corner cases.
