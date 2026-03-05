@@ -157,6 +157,10 @@ GROQ_API_KEY=...     # required — generator model
 OPENAI_API_KEY=...   # required — GPT-5.2 judge
 ```
 
+### Vercel Deployment
+
+The benchmark judge route (`/api/benchmark/judge`) is capped at `maxDuration = 300` seconds to stay within the Vercel Hobby plan limit. On Pro/Enterprise plans you can raise this up to 800s for larger runs.
+
 ### Cost and Performance
 
 The judge sends the transcript window to GPT-5.2 for each evaluation. Larger context windows = more tokens per call:

@@ -2,7 +2,7 @@ import { GeneratorRun, JudgedRun } from '../../../../lib/benchmark/types';
 import { judgeAllTicks } from '../../../../lib/benchmark/judge';
 import { computeSummary } from '../../../../lib/benchmark/scorer';
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
