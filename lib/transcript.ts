@@ -33,6 +33,21 @@ export function parseTranscript(content: string): TranscriptSegment[] {
         .map((s) => ({ speaker: s.speaker, text: s.content }));
       return estimateTimestamps(rawSegments, 'estimated');
     }
+    // Azure Speech-to-Text: {segments: [{speaker, offset, duration, nbest: [{text}]}]}
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.segments)) {
+      const azureSegs = parsed.segments as { speaker: number; offset: number; duration: number; nbest: { text: string }[] }[];
+      const valid = azureSegs.filter((s) => s.nbest?.[0]?.text && typeof s.offset === 'number');
+      if (valid.length > 0) {
+        const TICK = 10_000_000;
+        return valid.map((s) => ({
+          start: s.offset / TICK,
+          end: (s.offset + s.duration) / TICK,
+          speaker: `Speaker ${s.speaker}`,
+          text: s.nbest[0].text,
+          provenance: 'exact' as ReplayQuality,
+        }));
+      }
+    }
     if (Array.isArray(parsed) && parsed.length > 0) {
       const first = parsed[0];
       if ('start' in first && 'end' in first && 'speaker' in first && 'text' in first) {

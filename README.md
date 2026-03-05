@@ -35,6 +35,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Timestamps, no speakers | `.json` — `[{start, end, text}]` | Exact JSON, speaker = "Unknown" | `exact` |
 | Speakers, no timestamps | `.json` — `[{speaker, text}]` | Estimated timing (~0.33s/word) | `estimated` |
 | QMSum format | `.json` — `{meeting_transcripts: [{speaker, content}]}` | QMSum parser | `estimated` |
+| Azure Speech-to-Text | `.json` — `{segments: [{speaker, offset, duration, nbest: [{text}]}]}` | Azure STT parser (100ns ticks → seconds) | `exact` |
 | Speaker-labeled lines | `.txt` — `Speaker Name: text` per line | Speaker-line regex | `estimated` |
 | Plain text | `.txt` — sentences only | Sentence split, speaker = "Unknown" | `approximate` |
 
