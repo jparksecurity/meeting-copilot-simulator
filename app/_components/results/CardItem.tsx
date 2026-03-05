@@ -19,7 +19,7 @@ export function CardItem({ card }: CardItemProps) {
           {card.type}
         </span>
         <span className="text-sm text-zinc-800 font-medium flex-1 leading-snug">
-          {card.line}
+          {card.text}
         </span>
       </div>
     </div>

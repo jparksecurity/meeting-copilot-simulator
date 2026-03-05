@@ -54,15 +54,7 @@ export function TickPanel({
               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
                 What the participant would see now
               </h3>
-              {currentTick.result.intervene && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                  <span className="text-[10px] font-medium text-blue-600">
-                    {Math.round(currentTick.result.confidence * 100)}% confidence
-                  </span>
-                </div>
-              )}
-            </div>
+              </div>
 
             {currentTick.error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm mb-3">
@@ -166,7 +158,7 @@ export function TickPanel({
                   <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100">
                     <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Reasoning</p>
                     <p className="text-sm text-zinc-700 leading-relaxed">
-                      {currentTick.result.reason || 'No reasoning provided.'}
+                      {currentTick.result.why || 'No reasoning provided.'}
                     </p>
                   </div>
 
@@ -243,7 +235,7 @@ export function TickPanel({
                         {currentTick.recentCards.map((c, i) => (
                           <div key={i} className="text-[10px] text-zinc-600 font-mono flex gap-2">
                             <span className="font-bold text-zinc-400">[{c.type}]</span>
-                            <span>{c.line}</span>
+                            <span>{c.text}</span>
                           </div>
                         ))}
                       </div>

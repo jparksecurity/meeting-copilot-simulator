@@ -66,21 +66,20 @@ export function isAudioFile(name: string): boolean {
 }
 
 export function ticksToCSV(ticks: TickLog[]): string {
-  const header = 'tick_time,intervene,confidence,reason,num_cards,card1_type,card1_line,card2_type,card2_line,card3_type,card3_line,error';
+  const header = 'tick_time,intervene,why,num_cards,card1_type,card1_text,card2_type,card2_text,card3_type,card3_text,error';
   const rows = ticks.map((t) => {
     const c = t.result.cards;
     const cells = [
       formatTime(t.tickTime),
       t.result.intervene,
-      t.result.confidence,
-      `"${(t.result.reason ?? '').replace(/"/g, '""')}"`,
+      `"${(t.result.why ?? '').replace(/"/g, '""')}"`,
       c.length,
       c[0]?.type ?? '',
-      `"${(c[0]?.line ?? '').replace(/"/g, '""')}"`,
+      `"${(c[0]?.text ?? '').replace(/"/g, '""')}"`,
       c[1]?.type ?? '',
-      `"${(c[1]?.line ?? '').replace(/"/g, '""')}"`,
+      `"${(c[1]?.text ?? '').replace(/"/g, '""')}"`,
       c[2]?.type ?? '',
-      `"${(c[2]?.line ?? '').replace(/"/g, '""')}"`,
+      `"${(c[2]?.text ?? '').replace(/"/g, '""')}"`,
       `"${(t.error ?? '').replace(/"/g, '""')}"`,
     ];
     return cells.join(',');

@@ -21,13 +21,12 @@ export interface TranscriptSegment {
 
 export interface CardResult {
   type: CardType;
-  line: string;
+  text: string;
 }
 
 export interface TickResult {
   intervene: boolean;
-  confidence: number;
-  reason: string;
+  why: string;
   cards: CardResult[];
 }
 

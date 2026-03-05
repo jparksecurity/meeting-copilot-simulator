@@ -6,10 +6,13 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const { filledPrompt }: { filledPrompt: string } = await req.json();
+    const { systemPrompt, userMessage }: { systemPrompt: string; userMessage: string } = await req.json();
     const completion = await groq.chat.completions.create({
       model: MODEL_ID,
-      messages: [{ role: 'user', content: filledPrompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
     });
     const text = completion.choices[0]?.message?.content ?? '';
     const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -17,7 +20,7 @@ export async function POST(req: Request) {
       const result = JSON.parse(cleaned);
       return Response.json({ result, raw: text });
     } catch {
-      return Response.json({ result: { intervene: false, confidence: 0, reason: 'parse error', cards: [] }, raw: cleaned });
+      return Response.json({ result: { intervene: false, why: 'parse error', cards: [] }, raw: cleaned });
     }
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

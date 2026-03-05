@@ -1,6 +1,6 @@
 import { TranscriptSegment, TickLog, CardResult, TickResult } from './types';
 import { formatTime } from './transcript';
-import { fillPrompt, formatTranscriptWindow, formatRecentCards } from './prompt';
+import { fillPrompt, formatTranscriptWindow, DEFAULT_USER_TEMPLATE } from './prompt';
 
 interface SimulationConfig {
   targetParticipant: string;
@@ -22,19 +22,23 @@ export async function runTick(
     (seg) => seg.start < tickTime && seg.end > windowStart
   );
 
-  const filledPrompt = fillPrompt(promptTemplate, {
-    target_participant: targetParticipant,
-    tick_time: formatTime(tickTime),
-    context_window: `${contextWindowSeconds}s`,
-    recent_cards: formatRecentCards(recentCards),
-    transcript_window: formatTranscriptWindow(transcriptSlice),
-  });
+  const { system, user } = fillPrompt(
+    { systemPrompt: promptTemplate, userMessage: DEFAULT_USER_TEMPLATE },
+    {
+      target_participant: targetParticipant,
+      current_time: formatTime(tickTime),
+      context_window: `${contextWindowSeconds}s`,
+      transcript_slice: formatTranscriptWindow(transcriptSlice),
+    }
+  );
+
+  const filledPrompt = system + '\n---\n' + user;
 
   try {
     const response = await fetch('/api/simulate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filledPrompt }),
+      body: JSON.stringify({ systemPrompt: system, userMessage: user }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'API error');
@@ -58,7 +62,7 @@ export async function runTick(
       transcriptSlice,
       recentCards: [...recentCards],
       filledPrompt,
-      result: { intervene: false, confidence: 0, reason: 'error', cards: [] },
+      result: { intervene: false, why: 'error', cards: [] },
       rawResponse: '',
       uiEvents: [],
       error: errorMsg,
