@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { TranscriptSegment } from '../../lib/types';
-import { parseTranscript, getReplayQuality, getMaxEnd, getSpeakers, formatTime } from '../../lib/transcript';
+import { getReplayQuality, getMaxEnd, getSpeakers, formatTime } from '../../lib/transcript';
 import { isAudioFile } from '../../lib/constants';
 import { AppHeader } from './AppHeader';
 import { Stepper } from './Stepper';
@@ -30,6 +30,8 @@ export function ProcessingStage({ file, filename, preloadedSegments, onComplete,
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  const needsNormalize = !isAudio && (!preloadedSegments || preloadedSegments.length === 0);
+
   const [steps, setSteps] = useState<ProcessingStep[]>(() => {
     if (isAudio) {
       return [
@@ -37,6 +39,14 @@ export function ProcessingStage({ file, filename, preloadedSegments, onComplete,
         { label: 'Transcribing audio', status: 'waiting' },
         { label: 'Speaker labeling', status: 'waiting' },
         { label: 'Normalizing transcript', status: 'waiting' },
+        { label: 'Building replay checkpoints', status: 'waiting' },
+      ];
+    }
+    if (needsNormalize) {
+      return [
+        { label: 'Upload complete', status: 'complete' },
+        { label: 'Normalizing transcript', status: 'waiting' },
+        { label: 'Detecting speakers', status: 'waiting' },
         { label: 'Building replay checkpoints', status: 'waiting' },
       ];
     }
@@ -103,8 +113,61 @@ export function ProcessingStage({ file, filename, preloadedSegments, onComplete,
           updateStep(1, { status: 'failed', detail: err instanceof Error ? err.message : 'Transcription failed' });
           setError(err instanceof Error ? err.message : 'Transcription failed');
         }
+      } else if (needsNormalize) {
+        // LLM normalization path — transcript format not recognized by fast parser
+        updateStep(1, { status: 'running' });
+        try {
+          const reader = new FileReader();
+          const content = await new Promise<string>((resolve, reject) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+          if (cancelled) return;
+
+          const res = await fetch('/api/normalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+          });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `Normalization failed (${res.status})`);
+          }
+          const normalized: TranscriptSegment[] = await res.json();
+          if (cancelled) return;
+          if (normalized.length === 0) throw new Error('No segments extracted.');
+          updateStep(1, { status: 'complete', detail: `${normalized.length} segments extracted` });
+
+          // Step 2: Speakers
+          updateStep(2, { status: 'running' });
+          await new Promise((r) => setTimeout(r, 200));
+          if (cancelled) return;
+          const normSpeakers = getSpeakers(normalized);
+          const hasUnknown = normSpeakers.includes('Unknown') || normSpeakers.length <= 1;
+          if (hasUnknown) {
+            updateStep(2, { status: 'warning', detail: `${normSpeakers.length} speaker${normSpeakers.length !== 1 ? 's' : ''} found — confidence may be low` });
+          } else {
+            updateStep(2, { status: 'complete', detail: `${normSpeakers.length} speakers detected` });
+          }
+
+          // Step 3: Checkpoints
+          updateStep(3, { status: 'running' });
+          await new Promise((r) => setTimeout(r, 200));
+          if (cancelled) return;
+          const lastEnd = getMaxEnd(normalized);
+          const checkpointCount = Math.ceil(lastEnd / 30);
+          updateStep(3, { status: 'complete', detail: `${checkpointCount} checkpoints` });
+
+          setSegments(normalized);
+          setDone(true);
+        } catch (err) {
+          if (cancelled) return;
+          updateStep(1, { status: 'failed', detail: err instanceof Error ? err.message : 'Normalization failed' });
+          setError(err instanceof Error ? err.message : 'Normalization failed');
+        }
       } else {
-        // Transcript path - segments already parsed
+        // Fast-path transcript — segments already parsed
         if (preloadedSegments && preloadedSegments.length > 0) {
           // Step 1: Parse
           updateStep(1, { status: 'running' });
@@ -128,47 +191,13 @@ export function ProcessingStage({ file, filename, preloadedSegments, onComplete,
           updateStep(3, { status: 'complete', detail: qualityLabel });
 
           setDone(true);
-        } else {
-          // Need to parse
-          updateStep(1, { status: 'running' });
-          try {
-            const reader = new FileReader();
-            const content = await new Promise<string>((resolve, reject) => {
-              reader.onload = (e) => resolve(e.target?.result as string);
-              reader.onerror = reject;
-              reader.readAsText(file);
-            });
-            if (cancelled) return;
-
-            const parsed = parseTranscript(content);
-            if (parsed.length === 0) throw new Error('No segments found.');
-            updateStep(1, { status: 'complete', detail: `${parsed.length} segments` });
-
-            updateStep(2, { status: 'running' });
-            await new Promise((r) => setTimeout(r, 200));
-            if (cancelled) return;
-            const parsedSpeakers = getSpeakers(parsed);
-            updateStep(2, { status: 'complete', detail: `${parsedSpeakers.length} speakers` });
-
-            updateStep(3, { status: 'running' });
-            await new Promise((r) => setTimeout(r, 200));
-            if (cancelled) return;
-            updateStep(3, { status: 'complete' });
-
-            setSegments(parsed);
-            setDone(true);
-          } catch (err) {
-            if (cancelled) return;
-            updateStep(1, { status: 'failed', detail: err instanceof Error ? err.message : 'Parse failed' });
-            setError(err instanceof Error ? err.message : 'Parse failed');
-          }
         }
       }
     }
 
     process();
     return () => { cancelled = true; };
-  }, [file, isAudio, preloadedSegments, updateStep]);
+  }, [file, isAudio, needsNormalize, preloadedSegments, updateStep]);
 
   const stats = segments
     ? {

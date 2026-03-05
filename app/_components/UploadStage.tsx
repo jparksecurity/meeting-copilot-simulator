@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { TranscriptSegment } from '../../lib/types';
-import { parseTranscript, getSpeakers } from '../../lib/transcript';
+import { tryFastParse, getSpeakers } from '../../lib/transcript';
 import { isAudioFile, MAX_AUDIO_MB } from '../../lib/constants';
 import { AppHeader } from './AppHeader';
 import { Stepper } from './Stepper';
@@ -63,36 +63,17 @@ export function UploadStage({ onParsed, onBack }: UploadStageProps) {
       return;
     }
 
-    // Parse transcript immediately for validation
+    // Try fast-path parse (exact JSON format only)
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      try {
-        const parsed = parseTranscript(content);
-        if (parsed.length === 0) {
-          setError('No segments found in file.');
-          return;
-        }
+      const parsed = tryFastParse(content);
 
+      if (parsed) {
+        // Fast path: exact format
         const speakers = getSpeakers(parsed);
-        const quality = parsed[0]?.provenance ?? 'approximate';
-        const hasRealTimestamps = quality === 'exact';
-        const warnings: string[] = [];
-
-        if (!hasRealTimestamps) {
-          warnings.push(
-            quality === 'estimated'
-              ? 'No timestamps in source. Replay timing will be estimated from word count.'
-              : 'No timestamps or speakers found. Replay will be highly approximate.'
-          );
-        }
-
         const detected = file.name.endsWith('.json') ? 'JSON transcript detected' : 'Text transcript detected';
-        const details = [];
-        if (hasRealTimestamps) details.push('Timestamps detected');
-        else if (quality === 'estimated') details.push('Timestamps estimated');
-        else details.push('No timestamps');
-        details.push(`${speakers.length} speaker${speakers.length !== 1 ? 's' : ''} detected`);
+        const details = ['Timestamps detected', `${speakers.length} speaker${speakers.length !== 1 ? 's' : ''} detected`];
 
         setSelectedFile(file);
         setSegments(parsed);
@@ -101,10 +82,20 @@ export function UploadStage({ onParsed, onBack }: UploadStageProps) {
           size: sizeStr,
           type: 'transcript',
           detected: `${detected} — ${details.join(', ')}`,
-          warnings,
+          warnings: [],
         });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Parse error');
+      } else {
+        // Needs LLM normalization
+        const detected = file.name.endsWith('.json') ? 'JSON transcript detected' : 'Text transcript detected';
+        setSelectedFile(file);
+        setSegments(null);
+        setFileInfo({
+          name: file.name,
+          size: sizeStr,
+          type: 'transcript',
+          detected: `${detected} — AI normalization needed`,
+          warnings: ['This format will be normalized by AI. Replay timing will be estimated.'],
+        });
       }
     };
     reader.readAsText(file);
@@ -116,7 +107,11 @@ export function UploadStage({ onParsed, onBack }: UploadStageProps) {
       // Pass file through, processing stage will handle transcription
       onParsed([], selectedFile.name, selectedFile);
     } else if (segments) {
+      // Fast-path: already parsed
       onParsed(segments, selectedFile.name, selectedFile);
+    } else {
+      // Needs LLM normalization — pass empty segments, processing stage will call /api/normalize
+      onParsed([], selectedFile.name, selectedFile);
     }
   };
 
