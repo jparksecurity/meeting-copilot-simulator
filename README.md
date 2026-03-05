@@ -5,8 +5,8 @@ A web app for testing a private meeting copilot. Upload a transcript or audio fi
 ## Stack
 
 - Next.js 16 + React 19 + TypeScript
-- Groq SDK (`openai/gpt-oss-120b`)
-- OpenAI SDK (audio transcription/diarization only)
+- Groq SDK (`openai/gpt-oss-120b`) — generator model
+- OpenAI SDK (`gpt-5.2`) — benchmark judge + audio transcription
 - Tailwind CSS v4
 
 ## Quick Start
@@ -20,7 +20,7 @@ Set environment variables:
 
 ```
 GROQ_API_KEY=...
-OPENAI_API_KEY=...   # only needed for audio uploads
+OPENAI_API_KEY=...   # needed for benchmark judge + audio uploads
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -127,6 +127,62 @@ For systematic testing, use meeting-specific corpora in two lanes: **transcript-
 
 For each corpus, test across context window sizes (30s, 60s, 120s, 300s) and observe hold rate, card type distribution, repetition, and intervention quality near topic transitions.
 
+## Benchmark Mode
+
+Navigate to [/benchmark](http://localhost:3000/benchmark) to evaluate prompt and context window performance across multiple meetings.
+
+### How It Works
+
+1. **Configure** — select QMSum meetings, context windows (30s/60s/120s/300s), edit the system prompt, and choose a target participant strategy
+2. **Generate** — for each (meeting, context window) combo, runs all 30s ticks through GPT-OSS-120B via Groq (same model as the simulator)
+3. **Judge** — each tick is evaluated by GPT-5.2 using three judge stages:
+   - **Trigger Judge** — was the intervene/hold decision correct?
+   - **Card Judge** (per card) — scores 8 dimensions: type fit, timing, goal fit, grounding, actionability, social tact, specificity, brevity/clarity
+   - **Set Judge** — evaluates the card set as a whole: coverage, diversity, ranking, restraint, consistency
+4. **Results** — comparison table with drill-down per tick, plus JSON/CSV export
+
+### Scoring
+
+Each tick gets a composite score (0-100) computed from weighted formulas:
+
+- **Intervene ticks**: 25% trigger + 35% first card quality + 20% best card quality + 20% set quality
+- **Hold ticks**: 70% decision correct + 30% hold quality
+
+Summary stats: mean/median score, intervention rate, critical fail rate, card quality, set quality, judge low-confidence rate.
+
+### Environment Variables
+
+```
+GROQ_API_KEY=...     # required — generator model
+OPENAI_API_KEY=...   # required — GPT-5.2 judge
+```
+
+### Cost and Performance
+
+The judge sends the transcript window to GPT-5.2 for each evaluation. Larger context windows = more tokens per call:
+
+| Context Window | ~Input tokens per meeting (37 ticks) |
+|---|---|
+| 30s | 90K-185K |
+| 60s | 185K-460K |
+| 120s | 370K-925K |
+| 300s | 925K-2.2M |
+
+GPT-5.2 pricing: $1.75/1M input, $14/1M output (reasoning tokens billed as output). A single meeting at 60s costs roughly $2-4.
+
+### Key Benchmark Files
+
+| File | Purpose |
+|------|---------|
+| `lib/benchmark/types.ts` | GeneratorRun, JudgedRun, TickJudgeResult, RunSummaryStats |
+| `lib/benchmark/generator.ts` | Headless tick runner (Groq SDK direct) |
+| `lib/benchmark/judge.ts` | GPT-5.2 judge caller (10 ticks concurrent) |
+| `lib/benchmark/judge-prompts.ts` | Trigger, Card, Set judge prompt templates |
+| `lib/benchmark/scorer.ts` | Composite score math + summary aggregation |
+| `lib/benchmark/deterministic.ts` | Hard validation (word count, char count, bullets, semicolons) |
+| `lib/benchmark/loaders.ts` | QMSum JSON parser + most-active-speaker picker |
+| `lib/benchmark/constants.ts` | QMSum URLs, judge model config |
+
 ## Architecture
 
 5-stage wizard: **Home → Upload → Processing → Configure → Results**
@@ -142,6 +198,8 @@ For each corpus, test across context window sizes (30s, 60s, 120s, 300s) and obs
 | `lib/actions.ts` | Server Action: `transcribeAudio()` (OpenAI diarization) |
 | `lib/constants.ts` | MODEL_ID, TICK_INTERVAL, CONTEXT_PRESETS, CARD_COLORS |
 | `app/api/simulate/route.ts` | POST `{filledPrompt}` → Groq SDK → TickResult JSON |
+| `app/api/benchmark/*/route.ts` | Benchmark API: meetings list, load, generate, judge |
+| `app/benchmark/page.tsx` | Benchmark UI: configure → run → results |
 
 ### Prompt Template Variables
 
